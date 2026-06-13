@@ -1,0 +1,22 @@
+name: fetch-ig-media
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run fetch script
+        env:
+          IG_ID: ${{ vars.IG_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+        run: python3 fetch_ig.py
+      - name: Commit result
+        run: |
+          git config user.name "Hayat Amin"
+          git config user.email "hayat@beyondelevation.com"
+          git add latest_media.json
+          git diff --cached --quiet || (git commit -m "chore: record latest IG media" && git push)
