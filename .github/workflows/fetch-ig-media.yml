@@ -3,6 +3,9 @@ name: fetch-ig-media
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
