@@ -1,0 +1,29 @@
+{
+  "data": [
+    {
+      "id": "17979447222018242",
+      "media_type": "CAROUSEL_ALBUM",
+      "timestamp": "2026-06-13T06:41:50+0000",
+      "permalink": "https://www.instagram.com/p/DZhC01xEvGW/"
+    },
+    {
+      "id": "18080845202540265",
+      "media_type": "CAROUSEL_ALBUM",
+      "timestamp": "2026-06-12T20:42:49+0000",
+      "permalink": "https://www.instagram.com/p/DZf-cePHyQt/"
+    },
+    {
+      "id": "17918567664390929",
+      "media_type": "CAROUSEL_ALBUM",
+      "timestamp": "2026-06-12T13:19:53+0000",
+      "permalink": "https://www.instagram.com/p/DZfL37JEtxw/"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "before": "QVFIUzJoRk9YQmxncDVPLWlwMGRuZAFc0eVNMemM4alBlVmhNdmlxWC01aFR6NzZAuNi1HQldwS00ydTlqTzE5NkltdVpVb0ZAXS0FWc2ktb21YMUppUVk2cWVB",
+      "after": "QVFIU05qMGF2STBsTXNUUkY0dmxyTVB3c3plS3J1NFJZATG5xZA202SW4tNWF0UUt3WEFMYWNVaGthQ0tzOGZAKUmVnSzNPYm5sbXBoaExQVWQ0X2tNUmNaZAV93"
+    },
+    "next": "https://graph.facebook.com/v25.0/17841422274109557/media?fields=id,media_type,timestamp,permalink&limit=3&access_token=EAASSEUy7BCoBRU1jEwOKcOHbd6gtz0nilxU9hJblV8I9KpbpjFITnFZAlQGadjpm8sOsilvi6SICmqkvmxRCJpLGeZCIZCZB72S7kQDOtEZApWyz8AVlz3WFpDDhZAJwvcqlfVN0tpvnHQmDeLY0YNgBig4mAhAGeNRhXm6JwWNkpUBMZCZBUS4GCZCZBjilS6meS8Yed9RT5nBwZDZD&after=QVFIU05qMGF2STBsTXNUUkY0dmxyTVB3c3plS3J1NFJZATG5xZA202SW4tNWF0UUt3WEFMYWNVaGthQ0tzOGZAKUmVnSzNPYm5sbXBoaExQVWQ0X2tNUmNaZAV93"
+  }
+}
