@@ -1,0 +1,37 @@
+name: fetch-latest-media
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch latest IG media
+        run: |
+          python3 - <<'PYEOF'
+          import json, urllib.request, urllib.error
+          IG_ID    = "17841422274109557"
+          IG_TOKEN = "EAASSEUy7BCoBRU1jEwOKcOHbd6gtz0nilxU9hJblV8I9KpbpjFITnFZAlQGadjpm8sOsilvi6SICmqkvmxRCJpLGeZCIZCZB72S7kQDOtEZApWyz8AVlz3WFpDDhZAJwvcqlfVN0tpvnHQmDeLY0YNgBig4mAhAGeNRhXm6JwWNkpUBMZCZBUS4GCZCZBjilS6meS8Yed9RT5nBwZDZD"
+          url = f"https://graph.facebook.com/v23.0/{IG_ID}/media?fields=id,media_type,timestamp,permalink&limit=3&access_token={IG_TOKEN}"
+          try:
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  data = json.loads(r.read())
+                  print(json.dumps(data, indent=2))
+                  with open("latest_media.json", "w") as f:
+                      json.dump(data, f, indent=2)
+          except urllib.error.HTTPError as e:
+              err = e.read().decode()
+              print(f"Error: {err}")
+              with open("latest_media.json", "w") as f:
+                  f.write(err)
+          PYEOF
+      - name: Commit result
+        run: |
+          git config user.name "Hayat Amin"
+          git config user.email "hayat@beyondelevation.com"
+          git add latest_media.json
+          git diff --cached --quiet || git commit -m "chore: record latest IG media"
+          git push
