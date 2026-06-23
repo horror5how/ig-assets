@@ -1,0 +1,134 @@
+name: Post Instagram Carousel
+
+on:
+  push:
+    paths:
+      - 'posts/*/slide_01.png'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Post slug directory name'
+        required: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find latest post slug
+        id: slug
+        run: |
+          if [ -n "${{ github.event.inputs.slug }}" ]; then
+            echo "slug=${{ github.event.inputs.slug }}" >> $GITHUB_OUTPUT
+          else
+            # Find the post that was just pushed (newest dir)
+            SLUG=$(ls -td posts/*/ 2>/dev/null | head -1 | sed 's|posts/||;s|/||')
+            echo "slug=$SLUG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build image URLs
+        id: urls
+        run: |
+          SLUG="${{ steps.slug.outputs.slug }}"
+          SHA="${{ github.sha }}"
+          BASE="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}/posts/${SLUG}"
+          URLS=""
+          for i in 01 02 03 04 05 06; do
+            FILE="posts/${SLUG}/slide_${i}.png"
+            if [ -f "$FILE" ]; then
+              URLS="${URLS}${BASE}/slide_${i}.png,"
+            fi
+          done
+          URLS="${URLS%,}"
+          echo "urls=${URLS}" >> $GITHUB_OUTPUT
+          echo "slug=${SLUG}" >> $GITHUB_OUTPUT
+          echo "Image URLs: $URLS"
+
+      - name: Read caption
+        id: caption
+        run: |
+          SLUG="${{ steps.slug.outputs.slug }}"
+          CAPTION=$(cat "posts/${SLUG}/caption.txt" 2>/dev/null || echo "")
+          # Encode for GitHub output (escape newlines)
+          echo "caption<<CAPTION_EOF" >> $GITHUB_OUTPUT
+          cat "posts/${SLUG}/caption.txt" >> $GITHUB_OUTPUT
+          echo "CAPTION_EOF" >> $GITHUB_OUTPUT
+
+      - name: Post carousel to Instagram
+        id: post
+        run: |
+          set -e
+          SLUG="${{ steps.slug.outputs.slug }}"
+          IG_ID="${{ secrets.ACTIVE_IG_BUSINESS_ID }}"
+          TOKEN="${{ secrets.ACTIVE_IG_TOKEN }}"
+          GRAPH="https://graph.facebook.com/v23.0"
+          URLS="${{ steps.urls.outputs.urls }}"
+
+          if [ -z "$IG_ID" ] || [ -z "$TOKEN" ]; then
+            echo "ERROR: Missing IG secrets (ACTIVE_IG_BUSINESS_ID / ACTIVE_IG_TOKEN)"
+            exit 1
+          fi
+
+          echo "Posting $SLUG with URLs: $URLS"
+
+          # Build child containers
+          CHILD_IDS=""
+          IFS=',' read -ra URL_ARRAY <<< "$URLS"
+          for URL in "${URL_ARRAY[@]}"; do
+            echo "Creating child for: $URL"
+            RESP=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media" \
+              --data-urlencode "image_url=${URL}" \
+              --data-urlencode "is_carousel_item=true" \
+              --data-urlencode "access_token=${TOKEN}" 2>&1)
+            ID=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
+            if [ -z "$ID" ]; then
+              echo "Child container failed: $RESP"
+              exit 1
+            fi
+            CHILD_IDS="${CHILD_IDS}${ID},"
+            echo "  Child ID: $ID"
+          done
+          CHILD_IDS="${CHILD_IDS%,}"
+
+          # Carousel container
+          CAPTION_TEXT=$(cat "posts/${SLUG}/caption.txt")
+          CAROUSEL_RESP=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media" \
+            --data-urlencode "media_type=CAROUSEL" \
+            --data-urlencode "children=${CHILD_IDS}" \
+            --data-urlencode "caption=${CAPTION_TEXT}" \
+            --data-urlencode "access_token=${TOKEN}" 2>&1)
+          CAROUSEL_ID=$(echo "$CAROUSEL_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
+          if [ -z "$CAROUSEL_ID" ]; then
+            echo "Carousel container failed: $CAROUSEL_RESP"
+            exit 1
+          fi
+          echo "Carousel container: $CAROUSEL_ID"
+
+          # Publish
+          sleep 5
+          PUB_RESP=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media_publish" \
+            --data-urlencode "creation_id=${CAROUSEL_ID}" \
+            --data-urlencode "access_token=${TOKEN}" 2>&1)
+          MEDIA_ID=$(echo "$PUB_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
+          if [ -z "$MEDIA_ID" ]; then
+            echo "Publish failed: $PUB_RESP"
+            exit 1
+          fi
+          echo "Published media_id: $MEDIA_ID"
+          echo "media_id=${MEDIA_ID}" >> $GITHUB_OUTPUT
+
+      - name: Update relay log
+        if: steps.post.outputs.media_id != ''
+        run: |
+          SLUG="${{ steps.slug.outputs.slug }}"
+          MEDIA_ID="${{ steps.post.outputs.media_id }}"
+          TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "{\"ts\":\"${TS}\",\"slug\":\"${SLUG}\",\"media_id\":\"${MEDIA_ID}\"}" >> relay_log.jsonl
+
+          git config user.name "hayat@beyondelevation.com"
+          git config user.email "hayat@beyondelevation.com"
+          git add relay_log.jsonl
+          git commit -m "log: posted ${SLUG} media_id=${MEDIA_ID}"
+          git push
+          echo "Relay log updated. media_id=${MEDIA_ID}"
