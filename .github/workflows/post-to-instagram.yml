@@ -22,9 +22,14 @@ jobs:
           if [ -n "${{ github.event.inputs.slug }}" ]; then
             echo "slug=${{ github.event.inputs.slug }}" >> $GITHUB_OUTPUT
           else
-            # Find the post that was just pushed (newest dir)
-            SLUG=$(ls -td posts/*/ 2>/dev/null | head -1 | sed 's|posts/||;s|/||')
+            # Extract slug from the files changed in this push commit
+            SLUG=$(git diff HEAD~1..HEAD --name-only 2>/dev/null | grep "^posts/" | sed 's|posts/||;s|/.*||' | sort -u | head -1)
+            if [ -z "$SLUG" ]; then
+              # Fallback: find the first post directory that has a caption.txt
+              SLUG=$(find posts -name "caption.txt" | sed 's|posts/||;s|/caption.txt||' | head -1)
+            fi
             echo "slug=$SLUG" >> $GITHUB_OUTPUT
+            echo "Detected slug: $SLUG"
           fi
 
       - name: Build image URLs
@@ -45,15 +50,21 @@ jobs:
           echo "slug=${SLUG}" >> $GITHUB_OUTPUT
           echo "Image URLs: $URLS"
 
-      - name: Read caption
+      - name: Verify caption exists
         id: caption
         run: |
           SLUG="${{ steps.slug.outputs.slug }}"
-          CAPTION=$(cat "posts/${SLUG}/caption.txt" 2>/dev/null || echo "")
-          # Encode for GitHub output (escape newlines)
-          echo "caption<<CAPTION_EOF" >> $GITHUB_OUTPUT
-          cat "posts/${SLUG}/caption.txt" >> $GITHUB_OUTPUT
-          echo "CAPTION_EOF" >> $GITHUB_OUTPUT
+          if [ -z "$SLUG" ]; then
+            echo "ERROR: slug is empty"
+            exit 1
+          fi
+          if [ ! -f "posts/${SLUG}/caption.txt" ]; then
+            echo "ERROR: posts/${SLUG}/caption.txt not found"
+            ls posts/ || true
+            exit 1
+          fi
+          echo "Caption verified for slug: $SLUG"
+          wc -c "posts/${SLUG}/caption.txt"
 
       - name: Post carousel to Instagram
         id: post
