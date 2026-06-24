@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'posts/*/slide_01.png'
+      - 'posts/*/caption.txt'
   workflow_dispatch:
     inputs:
       slug:
@@ -26,7 +27,10 @@ jobs:
           else
             SLUG=$(git diff HEAD~1..HEAD --name-only 2>/dev/null | grep "^posts/" | sed 's|posts/||;s|/.*||' | sort -u | head -1)
             if [ -z "$SLUG" ]; then
-              SLUG=$(find posts -name "caption.txt" | sed 's|posts/||;s|/caption.txt||' | head -1)
+              SLUG=$(find posts -name "caption.txt" -newer posts/.gitkeep 2>/dev/null | sed 's|posts/||;s|/caption.txt||' | sort | head -1)
+            fi
+            if [ -z "$SLUG" ]; then
+              SLUG=$(find posts -name "caption.txt" | sed 's|posts/||;s|/caption.txt||' | sort | head -1)
             fi
             echo "slug=$SLUG" >> $GITHUB_OUTPUT
             echo "Detected slug: $SLUG"
@@ -87,30 +91,21 @@ jobs:
           IFS=',' read -ra URL_ARRAY <<< "$URLS"
           for URL in "${URL_ARRAY[@]}"; do
             echo "Child: $URL"
-            RESP=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media" \
-              --data-urlencode "image_url=${URL}" \
-              --data-urlencode "is_carousel_item=true" \
-              --data-urlencode "access_token=${TOKEN}")
-            ID=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+            RESP=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media"               --data-urlencode "image_url=${URL}"               --data-urlencode "is_carousel_item=true"               --data-urlencode "access_token=${TOKEN}")
+            ID=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)[id])")
             CHILD_IDS="${CHILD_IDS}${ID},"
             echo "  -> $ID"
           done
           CHILD_IDS="${CHILD_IDS%,}"
 
           CAPTION_TEXT=$(cat "posts/${SLUG}/caption.txt")
-          CAROUSEL=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media" \
-            --data-urlencode "media_type=CAROUSEL" \
-            --data-urlencode "children=${CHILD_IDS}" \
-            --data-urlencode "caption=${CAPTION_TEXT}" \
-            --data-urlencode "access_token=${TOKEN}")
-          CAROUSEL_ID=$(echo "$CAROUSEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          CAROUSEL=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media"             --data-urlencode "media_type=CAROUSEL"             --data-urlencode "children=${CHILD_IDS}"             --data-urlencode "caption=${CAPTION_TEXT}"             --data-urlencode "access_token=${TOKEN}")
+          CAROUSEL_ID=$(echo "$CAROUSEL" | python3 -c "import json,sys; print(json.load(sys.stdin)[id])")
           echo "Carousel container: $CAROUSEL_ID"
 
           sleep 5
-          PUB=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media_publish" \
-            --data-urlencode "creation_id=${CAROUSEL_ID}" \
-            --data-urlencode "access_token=${TOKEN}")
-          MEDIA_ID=$(echo "$PUB" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          PUB=$(curl -sf -X POST "${GRAPH}/${IG_ID}/media_publish"             --data-urlencode "creation_id=${CAROUSEL_ID}"             --data-urlencode "access_token=${TOKEN}")
+          MEDIA_ID=$(echo "$PUB" | python3 -c "import json,sys; print(json.load(sys.stdin)[id])")
           echo "Published: media_id=${MEDIA_ID}"
           echo "media_id=${MEDIA_ID}" >> $GITHUB_OUTPUT
 
@@ -130,12 +125,10 @@ jobs:
           MEDIA_ID="${{ steps.final.outputs.media_id }}"
           TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Write idempotency guard
           echo "$MEDIA_ID" > "posts/${SLUG}/media_id.txt"
 
-          # Update relay log only if this media_id isn't already there
           if ! grep -q "$MEDIA_ID" relay_log.jsonl 2>/dev/null; then
-            echo "{\"ts\":\"${TS}\",\"slug\":\"${SLUG}\",\"media_id\":\"${MEDIA_ID}\"}" >> relay_log.jsonl
+            echo "{"ts":"${TS}","slug":"${SLUG}","media_id":"${MEDIA_ID}"}" >> relay_log.jsonl
           fi
 
           git config user.name "hayat@beyondelevation.com"
@@ -146,7 +139,6 @@ jobs:
             echo "Nothing to commit (already logged)"
           else
             git commit -m "log: ${SLUG} media_id=${MEDIA_ID}"
-            # Use PAT if available, else GITHUB_TOKEN
             REMOTE_URL=$(git remote get-url origin | sed "s|https://|https://x-access-token:${{ secrets.PAT_TOKEN || github.token }}@|")
             git push "$REMOTE_URL" main
             echo "Relay log committed and pushed"
