@@ -1,0 +1,9 @@
+=== Debug log Mon Jun 29 06:30:31 UTC 2026 ===
+IG_ID length: 17
+Token length: 213
+IG_ID: SET
+Token: SET
+URLS: https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_01.png,https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_02.png,https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_03.png,https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_04.png,https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_05.png,https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_06.png
+Token check: {"error":{"message":"Error validating access token: Session has expired on Thursday, 25-Jun-26 23:32:48 PDT. The current time is Sunday, 28-Jun-26 23:30:31 PDT.","type":"OAuthException","code":190,"error_subcode":463,"fbtrace_id":"A1zeLlH7orImNSraHWngHDk"}}
+Testing first URL: https://raw.githubusercontent.com/horror5how/ig-assets/b50b76fa528b332057c7dd69764f17448649b61e/posts/fractional-risk-reversal-20260629/slide_01.png
+First child response: {"error":{"message":"Error validating access token: Session has expired on Thursday, 25-Jun-26 23:32:48 PDT. The current time is Sunday, 28-Jun-26 23:30:31 PDT.","type":"OAuthException","code":190,"error_subcode":463,"fbtrace_id":"Ad3ZqkePbDSyd30dCIXAEpf"}}
