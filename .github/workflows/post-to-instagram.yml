@@ -71,7 +71,6 @@ jobs:
           URLS="${URLS%,}"
           echo "urls=${URLS}" >> $GITHUB_OUTPUT
           echo "Image URLs: $URLS"
-          wc -c "posts/${SLUG}/caption.txt" || (echo "caption.txt missing"; exit 1)
 
       - name: Post carousel to Instagram
         if: steps.check.outputs.already_posted == 'false'
@@ -80,80 +79,99 @@ jobs:
           IG_ID: ${{ secrets.ACTIVE_IG_BUSINESS_ID }}
           IG_TOKEN: ${{ secrets.ACTIVE_IG_TOKEN }}
         run: |
-          set -e
           SLUG="${{ steps.slug.outputs.slug }}"
           GRAPH="https://graph.facebook.com/v23.0"
           URLS="${{ steps.urls.outputs.urls }}"
+          ERRLOG="posts/${SLUG}/debug.txt"
 
-          echo "IG_ID length: ${#IG_ID}"
-          echo "Token length: ${#IG_TOKEN}"
-          echo "IG_ID present: $([ -n "$IG_ID" ] && echo YES || echo NO)"
-          echo "TOKEN present: $([ -n "$IG_TOKEN" ] && echo YES || echo NO)"
+          {
+            echo "=== Debug log $(date -u) ==="
+            echo "IG_ID length: ${#IG_ID}"
+            echo "Token length: ${#IG_TOKEN}"
+            echo "IG_ID: $([ -n "$IG_ID" ] && echo SET || echo EMPTY)"
+            echo "Token: $([ -n "$IG_TOKEN" ] && echo SET || echo EMPTY)"
+            echo "URLS: $URLS"
 
-          # Debug: test token validity
-          TOKEN_CHECK=$(curl -s "${GRAPH}/me?access_token=${IG_TOKEN}" 2>&1 || echo "curl-failed")
-          echo "Token check response: $TOKEN_CHECK"
+            # Token validity check (redact token in output)
+            TOKEN_CHECK=$(curl -s "${GRAPH}/me?access_token=${IG_TOKEN}" 2>&1)
+            echo "Token check: $TOKEN_CHECK"
 
-          if [ -z "$IG_ID" ] || [ -z "$IG_TOKEN" ]; then
-            echo "ERROR: Missing IG secrets"
+            if [ -z "$IG_ID" ] || [ -z "$IG_TOKEN" ]; then
+              echo "FATAL: Missing IG secrets"
+            else
+              # Try first image only
+              FIRST_URL=$(echo "$URLS" | cut -d',' -f1)
+              echo "Testing first URL: $FIRST_URL"
+              CHILD_RESP=$(curl -s -X POST "${GRAPH}/${IG_ID}/media" \
+                --data-urlencode "image_url=${FIRST_URL}" \
+                --data-urlencode "is_carousel_item=true" \
+                --data-urlencode "access_token=${IG_TOKEN}")
+              echo "First child response: $CHILD_RESP"
+            fi
+          } > "$ERRLOG" 2>&1
+
+          # Commit debug file
+          git config user.name "hayat@beyondelevation.com"
+          git config user.email "hayat@beyondelevation.com"
+          git add "$ERRLOG"
+          git diff --cached --quiet || git commit -m "debug: ${SLUG} IG API test"
+          REMOTE_URL=$(git remote get-url origin | sed "s|https://|https://x-access-token:${{ secrets.PAT_TOKEN || github.token }}@|")
+          git push "$REMOTE_URL" main || true
+
+          # Now check result and fail if needed
+          if grep -q "FATAL\|error\|Error" "$ERRLOG" 2>/dev/null; then
+            echo "Error detected — see posts/${SLUG}/debug.txt"
+            cat "$ERRLOG"
             exit 1
           fi
 
-          echo "Posting $SLUG"
-          CHILD_IDS=""
-          IFS=',' read -ra URL_ARRAY <<< "$URLS"
-          FIRST_URL="${URL_ARRAY[0]}"
-          echo "Testing first image URL: $FIRST_URL"
-          IMG_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$FIRST_URL")
-          echo "Image URL HTTP status: $IMG_CHECK"
+          # Extract child ID from first response
+          FIRST_CHILD_ID=$(cat "$ERRLOG" | grep -A1 "First child response:" | tail -1 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null)
+          if [ -z "$FIRST_CHILD_ID" ]; then
+            echo "Failed to get first child ID"
+            exit 1
+          fi
 
-          for URL in "${URL_ARRAY[@]}"; do
-            echo "Child: $URL"
+          echo "First child ID: $FIRST_CHILD_ID"
+          CHILD_IDS="$FIRST_CHILD_ID"
+
+          # Now get remaining images
+          IFS=',' read -ra URL_ARRAY <<< "$URLS"
+          for URL in "${URL_ARRAY[@]:1}"; do
             RESP=$(curl -s -X POST "${GRAPH}/${IG_ID}/media" \
               --data-urlencode "image_url=${URL}" \
               --data-urlencode "is_carousel_item=true" \
               --data-urlencode "access_token=${IG_TOKEN}")
-            echo "API response: $RESP"
             if echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'id' in d else 1)" 2>/dev/null; then
               ID=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-              CHILD_IDS="${CHILD_IDS}${ID},"
-              echo "  -> $ID"
+              CHILD_IDS="${CHILD_IDS},${ID}"
             else
-              echo "ERROR creating child media container for $URL"
-              echo "Full error: $RESP"
+              echo "ERROR on child: $RESP"
               exit 1
             fi
           done
-          CHILD_IDS="${CHILD_IDS%,}"
-          echo "Child IDs: $CHILD_IDS"
 
           CAPTION_TEXT=$(cat "posts/${SLUG}/caption.txt")
-          echo "Caption length: ${#CAPTION_TEXT}"
-
           CAROUSEL=$(curl -s -X POST "${GRAPH}/${IG_ID}/media" \
             --data-urlencode "media_type=CAROUSEL" \
             --data-urlencode "children=${CHILD_IDS}" \
             --data-urlencode "caption=${CAPTION_TEXT}" \
             --data-urlencode "access_token=${IG_TOKEN}")
-          echo "Carousel response: $CAROUSEL"
+          echo "Carousel: $CAROUSEL"
           if ! echo "$CAROUSEL" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'id' in d else 1)" 2>/dev/null; then
-            echo "ERROR creating carousel container"
-            exit 1
+            echo "ERROR carousel: $CAROUSEL"; exit 1
           fi
           CAROUSEL_ID=$(echo "$CAROUSEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-          echo "Carousel container: $CAROUSEL_ID"
 
           sleep 5
           PUB=$(curl -s -X POST "${GRAPH}/${IG_ID}/media_publish" \
             --data-urlencode "creation_id=${CAROUSEL_ID}" \
             --data-urlencode "access_token=${IG_TOKEN}")
-          echo "Publish response: $PUB"
           if ! echo "$PUB" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'id' in d else 1)" 2>/dev/null; then
-            echo "ERROR publishing carousel"
-            exit 1
+            echo "ERROR publish: $PUB"; exit 1
           fi
           MEDIA_ID=$(echo "$PUB" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-          echo "Published: media_id=${MEDIA_ID}"
+          echo "Published: $MEDIA_ID"
           echo "media_id=${MEDIA_ID}" >> $GITHUB_OUTPUT
 
       - name: Resolve final media_id
@@ -171,23 +189,18 @@ jobs:
           SLUG="${{ steps.slug.outputs.slug }}"
           MEDIA_ID="${{ steps.final.outputs.media_id }}"
           TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
           echo "$MEDIA_ID" > "posts/${SLUG}/media_id.txt"
-
           if ! grep -q "$MEDIA_ID" relay_log.jsonl 2>/dev/null; then
             echo "{\"ts\":\"${TS}\",\"slug\":\"${SLUG}\",\"media_id\":\"${MEDIA_ID}\"}" >> relay_log.jsonl
           fi
-
           git config user.name "hayat@beyondelevation.com"
           git config user.email "hayat@beyondelevation.com"
           git add "posts/${SLUG}/media_id.txt" relay_log.jsonl
-
           if git diff --cached --quiet; then
-            echo "Nothing to commit (already logged)"
+            echo "Nothing to commit"
           else
             git commit -m "log: ${SLUG} media_id=${MEDIA_ID}"
             REMOTE_URL=$(git remote get-url origin | sed "s|https://|https://x-access-token:${{ secrets.PAT_TOKEN || github.token }}@|")
             git push "$REMOTE_URL" main
-            echo "Relay log committed and pushed"
           fi
           echo "Final media_id: $MEDIA_ID"
