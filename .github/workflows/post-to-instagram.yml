@@ -28,7 +28,6 @@ jobs:
           else
             SLUG=$(git diff HEAD~1..HEAD --name-only 2>/dev/null | grep "^posts/" | sed 's|posts/||;s|/.*||' | sort -u | head -1)
             if [ -z "$SLUG" ]; then
-              # Fallback: find newest post without media_id.txt
               SLUG=$(find posts -maxdepth 1 -mindepth 1 -type d | while read d; do
                 slug=$(basename "$d")
                 if [ ! -f "posts/$slug/media_id.txt" ] && [ -f "posts/$slug/caption.txt" ]; then
@@ -77,16 +76,23 @@ jobs:
       - name: Post carousel to Instagram
         if: steps.check.outputs.already_posted == 'false'
         id: post
+        env:
+          IG_ID: ${{ secrets.ACTIVE_IG_BUSINESS_ID }}
+          IG_TOKEN: ${{ secrets.ACTIVE_IG_TOKEN }}
         run: |
           set -e
           SLUG="${{ steps.slug.outputs.slug }}"
-          IG_ID="${{ secrets.ACTIVE_IG_BUSINESS_ID }}"
-          IG_TOKEN="${{ secrets.ACTIVE_IG_TOKEN }}"
           GRAPH="https://graph.facebook.com/v23.0"
           URLS="${{ steps.urls.outputs.urls }}"
 
           echo "IG_ID length: ${#IG_ID}"
           echo "Token length: ${#IG_TOKEN}"
+          echo "IG_ID present: $([ -n "$IG_ID" ] && echo YES || echo NO)"
+          echo "TOKEN present: $([ -n "$IG_TOKEN" ] && echo YES || echo NO)"
+
+          # Debug: test token validity
+          TOKEN_CHECK=$(curl -s "${GRAPH}/me?access_token=${IG_TOKEN}" 2>&1 || echo "curl-failed")
+          echo "Token check response: $TOKEN_CHECK"
 
           if [ -z "$IG_ID" ] || [ -z "$IG_TOKEN" ]; then
             echo "ERROR: Missing IG secrets"
@@ -96,6 +102,11 @@ jobs:
           echo "Posting $SLUG"
           CHILD_IDS=""
           IFS=',' read -ra URL_ARRAY <<< "$URLS"
+          FIRST_URL="${URL_ARRAY[0]}"
+          echo "Testing first image URL: $FIRST_URL"
+          IMG_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$FIRST_URL")
+          echo "Image URL HTTP status: $IMG_CHECK"
+
           for URL in "${URL_ARRAY[@]}"; do
             echo "Child: $URL"
             RESP=$(curl -s -X POST "${GRAPH}/${IG_ID}/media" \
@@ -108,7 +119,8 @@ jobs:
               CHILD_IDS="${CHILD_IDS}${ID},"
               echo "  -> $ID"
             else
-              echo "ERROR creating child media container"
+              echo "ERROR creating child media container for $URL"
+              echo "Full error: $RESP"
               exit 1
             fi
           done
