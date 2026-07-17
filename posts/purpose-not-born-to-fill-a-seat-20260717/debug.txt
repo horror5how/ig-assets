@@ -1,0 +1,9 @@
+=== Debug log Fri Jul 17 06:07:09 UTC 2026 ===
+IG_ID length: 17
+Token length: 213
+IG_ID: SET
+Token: SET
+URLS: https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_01.png,https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_02.png,https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_03.png,https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_04.png,https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_05.png,https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_06.png
+Token check: {"error":{"message":"Error validating access token: Session has expired on Thursday, 25-Jun-26 23:32:48 PDT. The current time is Thursday, 16-Jul-26 23:07:09 PDT.","type":"OAuthException","code":190,"error_subcode":463,"fbtrace_id":"AJj42QiN34ZqHd-vJ4-579-"}}
+Testing first URL: https://raw.githubusercontent.com/horror5how/ig-assets/1d2529f5fab9e39e3ada71cba1b45cd709d1371c/posts/purpose-not-born-to-fill-a-seat-20260717/slide_01.png
+First child response: {"error":{"message":"Error validating access token: Session has expired on Thursday, 25-Jun-26 23:32:48 PDT. The current time is Thursday, 16-Jul-26 23:07:09 PDT.","type":"OAuthException","code":190,"error_subcode":463,"fbtrace_id":"ATJLXqpikW9AK8_NLf0R8ts"}}
